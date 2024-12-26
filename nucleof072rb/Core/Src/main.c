@@ -19,6 +19,8 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "spi.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -87,14 +89,33 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
+  MX_SPI1_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
-
+  uint8_t txData[3] = {0};
+  uint8_t rxData[3] = {0};
+  uint16_t adcValue = 0x00;
+  uint16_t compareValue = 0x00;
+  uint16_t maxTimerCounts = 10000; //Auto-reload register
+  uint16_t maxADCValue = 1023; //10 bits
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	//bring CS to low to select ADC
+	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_8,GPIO_PIN_RESET);
+	//transmit and receive data from ADC simultaneously
+	HAL_SPI_TransmitReceive(&hspi1,txData,rxData,2,HAL_MAX_DELAY);
+	//bring CS to high
+	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_8,GPIO_PIN_SET);
+
+	//adc value is 10 bits so rxData[1] stores 2 MSBs and rxData[2] stores the 8 remaining since data can only be sent in 8 bits
+	uint16_t adcValue = ((rxData[1]&0x03)<<8 | rxData[2]);
+	compareValue = (adcValue * maxTimerCounts)/maxADCValue;
+	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, compareValue);
+	HAL_Delay(10);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
